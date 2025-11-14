@@ -419,15 +419,81 @@ except Exception as e:
     # Handle other errors
 ```
 
+## Command Line Interface (CLI)
+
+The package includes a powerful command-line interface for quick searches:
+
+### Basic CLI Usage
+
+```bash
+# Simple search
+python3 dehashed_cli.py search "domain:example.com"
+
+# Save results to CSV
+python3 dehashed_cli.py search "domain:example.com" --output results.csv
+
+# Fetch all results automatically (handles pagination)
+python3 dehashed_cli.py search "domain:example.com" --output results.csv --fetch-all
+
+# Search with wildcard
+python3 dehashed_cli.py search "username:admin*" --wildcard
+
+# Check balance
+python3 dehashed_cli.py balance
+```
+
+### Automatic Pagination with --fetch-all
+
+When dealing with large datasets, the API returns results in pages (max 10,000 per page). The `--fetch-all` flag automatically handles pagination:
+
+```bash
+# Without --fetch-all: Gets only first 10,000 results
+python3 dehashed_cli.py search "domain:large-company.com" --output results.csv
+
+# With --fetch-all: Automatically fetches ALL results across multiple pages
+python3 dehashed_cli.py search "domain:large-company.com" --output results.csv --fetch-all
+```
+
+**Example output:**
+```
+Total results: 25000
+Fetching all pages (page size: 10000)...
+Fetching page 2/3...
+Fetching page 3/3...
+Fetched 25000 total entries
+Results saved to results.csv
+Total entries exported: 25000
+```
+
+**Important Notes:**
+- Each page consumes API credits, so be aware of your usage when using `--fetch-all` on large datasets.
+- **API Hard Limit**: The DeHashed API has a maximum limit of 10,000 results that can be retrieved per query. If your search returns more than 10,000 results, only the first 10,000 can be fetched. The CLI will warn you about this and retrieve the maximum available. 
+- **No Workaround**: Due to API query format limitations (you cannot combine multiple search fields like `domain:X AND email:Y*`), there is no programmatic workaround to retrieve more than 10,000 results for a single broad query. You would need to manually run multiple separate, narrower queries.
+
+### CLI Help
+
+```bash
+# General help
+python3 dehashed_cli.py --help
+
+# Command-specific help
+python3 dehashed_cli.py search --help
+python3 dehashed_cli.py whois --help
+```
+
 ## Best Practices
 
 1. **Use Environment Variables**: Store your API key in the `DEHASHED_API_KEY` environment variable
 2. **Use Context Managers**: Use `with` statement to ensure proper cleanup
 3. **Handle Errors**: Always wrap API calls in try-except blocks
-4. **Pagination**: Use pagination for large result sets
-5. **Free Password Search**: Use `search_password()` for password hash lookups (it's free!)
-6. **Monitor Responsibly**: Only monitor assets you own or have permission to monitor
-7. **Rate Limiting**: Respect API rate limits and implement backoff strategies
+4. **Know the 10K Limit**: DeHashed API has a hard limit of 10,000 results per query. Narrow your searches if you need more data
+5. **Pagination**: For large result sets (up to 10K), use the `--fetch-all` flag in CLI or implement manual pagination in Python
+6. **Monitor Credits**: Large queries with `--fetch-all` can consume multiple pages of credits - check your balance first
+7. **Free Password Search**: Use `search_password()` for password hash lookups (it's free!)
+8. **Narrow Broad Searches**: If your query returns >10K results, use more specific filters (wildcards, usernames, etc.)
+9. **Monitor Responsibly**: Only monitor assets you own or have permission to monitor
+10. **Rate Limiting**: Respect API rate limits and implement backoff strategies
+11. **Export to CSV**: Use CSV format for easy analysis in Excel, Google Sheets, or data analysis tools
 
 ## Environment Setup
 

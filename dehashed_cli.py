@@ -13,6 +13,7 @@ from dehashed_api import DeHashedClient, DeHashedAPIError, pretty_print_results,
 def cmd_search(args):
     """Handle search command"""
     with DeHashedClient(api_key=args.api_key) as client:
+        # First request to get total count
         results = client.search(
             query=args.query,
             page=args.page,
@@ -21,6 +22,53 @@ def cmd_search(args):
             regex=args.regex,
             de_dupe=args.dedupe
         )
+        
+        # If we need to fetch all pages automatically
+        if args.fetch_all and 'total' in results:
+            total_results = results['total']
+            current_page = args.page
+            all_entries = results.get('entries', [])
+            
+            print(f"Total results: {total_results}")
+            
+            # Check if results exceed API limit
+            if total_results > 10000:
+                print(f"\n⚠️  WARNING: DeHashed API has a maximum pagination limit of 10,000 results.")
+                print(f"   Your query has {total_results} results, but only the first 10,000 can be retrieved.")
+                print(f"   Consider narrowing your search query to get more specific results.\n")
+            
+            print(f"Fetching all pages (page size: {args.size})...")
+            
+            # Calculate total pages needed (capped at 10000 results)
+            max_retrievable = min(total_results, 10000)
+            total_pages = (max_retrievable + args.size - 1) // args.size
+            
+            # Fetch remaining pages
+            for page_num in range(current_page + 1, total_pages + 1):
+                print(f"Fetching page {page_num}/{total_pages}...")
+                try:
+                    page_results = client.search(
+                        query=args.query,
+                        page=page_num,
+                        size=args.size,
+                        wildcard=args.wildcard,
+                        regex=args.regex,
+                        de_dupe=args.dedupe
+                    )
+                    all_entries.extend(page_results.get('entries', []))
+                except DeHashedAPIError as e:
+                    if "maximum pagination depth" in str(e).lower():
+                        print(f"\n⚠️  API Limit Reached: Cannot fetch beyond page {page_num-1}")
+                        print(f"   DeHashed API limits results to 10,000 entries maximum.")
+                        print(f"   Retrieved {len(all_entries)} entries so far.")
+                        print(f"   To get more results, narrow your search query.\n")
+                        break
+                    else:
+                        raise
+            
+            # Update results with all entries
+            results['entries'] = all_entries
+            print(f"Fetched {len(all_entries)} total entries")
         
         if args.output:
             # Determine format from file extension if not specified
@@ -145,6 +193,9 @@ Examples:
   # Save search results to CSV
   %(prog)s search "domain:example.com" --output results.csv
   
+  # Fetch all results automatically (all pages up to 10K limit)
+  %(prog)s search "domain:example.com" --output results.csv --fetch-all
+  
   # Save search results to JSON (explicit format)
   %(prog)s search "domain:example.com" --output results.json --format json
   
@@ -187,6 +238,7 @@ Examples:
     search_parser.add_argument('--wildcard', action='store_true', help='Enable wildcard matching')
     search_parser.add_argument('--regex', action='store_true', help='Enable regex matching')
     search_parser.add_argument('--dedupe', action='store_true', help='Remove duplicates')
+    search_parser.add_argument('--fetch-all', action='store_true', help='Automatically fetch all pages of results')
     search_parser.add_argument('--output', '-o', help='Save to file')
     search_parser.add_argument('--format', '-f', choices=['json', 'csv'], help='Output format (default: auto-detect from file extension)')
     search_parser.set_defaults(func=cmd_search)

@@ -81,6 +81,18 @@ class DeHashedClient:
             )
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as e:
+            # Try to get more details from the error response
+            error_msg = f"API request failed: {str(e)}"
+            try:
+                error_details = e.response.json()
+                if 'message' in error_details:
+                    error_msg = f"API Error: {error_details['message']}"
+                elif 'error' in error_details:
+                    error_msg = f"API Error: {error_details['error']}"
+            except:
+                pass
+            raise DeHashedAPIError(error_msg)
         except requests.exceptions.RequestException as e:
             raise DeHashedAPIError(f"API request failed: {str(e)}")
     

@@ -107,6 +107,9 @@ python dehashed_cli.py search "domain:example.com" --output results.json
 # Save to CSV file for easy analysis in Excel/Google Sheets
 python dehashed_cli.py search "domain:example.com" --output results.csv
 
+# Fetch ALL results automatically (handles pagination)
+python dehashed_cli.py search "domain:example.com" --output results.csv --fetch-all
+
 # Explicitly specify output format
 python dehashed_cli.py search "email:admin@example.com" --output data.txt --format csv
 
@@ -133,6 +136,103 @@ python dehashed_cli.py whois subdomain example.com
 
 # Check account balance
 python dehashed_cli.py balance
+```
+
+## 📄 Handling Large Result Sets (Pagination)
+
+By default, the DeHashed API returns a maximum of 10,000 results per page. If your search has more results, you need to handle pagination.
+
+### Automatic Pagination (CLI)
+
+The easiest way is to use the `--fetch-all` flag:
+
+```bash
+# This will automatically fetch ALL pages of results
+python dehashed_cli.py search "domain:large-company.com" --output results.csv --fetch-all
+```
+
+**What happens:**
+- Makes initial request to check total results
+- Calculates how many pages are needed
+- Automatically fetches each page
+- Combines all results into one file
+- Shows progress for each page
+
+**Example output:**
+```
+Total results: 35000
+Fetching all pages (page size: 10000)...
+Fetching page 2/4...
+Fetching page 3/4...
+Fetching page 4/4...
+Fetched 35000 total entries
+Results saved to results.csv
+Total entries exported: 35000
+```
+
+### Manual Pagination (Python Library)
+
+If you're using the Python library directly:
+
+```python
+from dehashed_api import DeHashedClient
+
+with DeHashedClient() as client:
+    all_entries = []
+    page = 1
+    
+    while True:
+        results = client.search("domain:example.com", page=page, size=10000)
+        entries = results.get('entries', [])
+        
+        if not entries:
+            break
+            
+        all_entries.extend(entries)
+        print(f"Fetched page {page}, total so far: {len(all_entries)}")
+        
+        # Check if we got all results
+        if len(all_entries) >= results.get('total', 0):
+            break
+            
+        page += 1
+    
+    print(f"Total entries: {len(all_entries)}")
+```
+
+### ⚠️ Important Warnings
+
+**Credit Usage**: Each page of results consumes API credits. Always check your balance first:
+
+```bash
+python dehashed_cli.py balance
+```
+
+**API Hard Limit**: The DeHashed API has a **maximum limit of 10,000 results** per query. If your search returns more than 10,000 results, you can only retrieve the first 10,000. The `--fetch-all` flag will warn you about this limitation.
+
+**Example with limit:**
+```bash
+$ python dehashed_cli.py search "domain:large-company.com" --output results.csv --fetch-all
+
+Total results: 15000
+
+⚠️  WARNING: DeHashed API has a maximum pagination limit of 10,000 results.
+   Your query has 15000 results, but only the first 10,000 can be retrieved.
+   Consider narrowing your search query to get more specific results.
+
+Fetching all pages (page size: 10000)...
+Fetched 10000 total entries
+Results saved to results.csv
+```
+
+**To get more results, narrow your search:**
+```bash
+# Instead of broad search:
+python dehashed_cli.py search "domain:example.com"  # Might have >10k results
+
+# Try more specific searches:
+python dehashed_cli.py search "domain:example.com AND email:*admin*" --wildcard
+python dehashed_cli.py search "domain:example.com AND username:john*" --wildcard
 ```
 
 ## 🎯 Common Use Cases
@@ -276,12 +376,15 @@ client.search("vin:1HGBH41JXMN109186")
 ## 💡 Pro Tips
 
 1. **Password searches are FREE** - Use `search_password()` as much as you want!
-2. **Use pagination** - Large result sets should use `page` and `size` parameters
-3. **Enable deduplication** - Use `de_dupe=True` to remove duplicate entries
-4. **Monitor proactively** - Set up monitoring tasks for important assets
-5. **Save results** - Use `save_results_to_file()` for JSON or `save_results_to_csv()` for CSV format
-6. **CSV for analysis** - Export to CSV for easy analysis in Excel, Google Sheets, or pandas
-7. **Check balance** - Monitor your credit usage with `get_balance()`
+2. **Know the 10,000 limit** - DeHashed API limits each query to 10,000 results max. Narrow broad searches!
+3. **Use automatic pagination** - Add `--fetch-all` flag to automatically get all available results (up to 10K)
+4. **Monitor credits** - Large queries with `--fetch-all` can consume multiple pages worth of credits
+5. **Enable deduplication** - Use `de_dupe=True` or `--dedupe` to remove duplicate entries
+6. **Narrow broad searches** - Use wildcards and specific filters to work within the 10K limit
+7. **Monitor proactively** - Set up monitoring tasks for important assets
+8. **Save results** - Use `save_results_to_file()` for JSON or `save_results_to_csv()` for CSV format
+9. **CSV for analysis** - Export to CSV for easy analysis in Excel, Google Sheets, or pandas
+10. **Check balance first** - Run `python dehashed_cli.py balance` before large queries
 
 ## ⚠️ Important Notes
 
